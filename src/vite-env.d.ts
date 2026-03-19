@@ -7,6 +7,7 @@ export interface CrossrefDateParts {
 export interface CrossrefAuthor {
   given?: string;
   family?: string;
+  name?: string;
 }
 
 export interface CrossrefFacet { 

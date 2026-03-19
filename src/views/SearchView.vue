@@ -4,8 +4,8 @@ import { useRouteQuery } from '@vueuse/router'
 import { onBeforeMount, ref, useTemplateRef, watch } from 'vue';
 import { useFetch, useIntersectionObserver, useMagicKeys, useStorage, watchDebounced } from '@vueuse/core';
 
-import FacetItem from '@/components/FacetItem.vue';
-import ResultValue from '@/components/ResultValue.vue';
+import FacetPanel from '@/components/FacetPanel.vue';
+import WorkItem from '@/components/WorkItem.vue';
 import LoadingIcon from '@/components/LoadingIcon.vue';
 
 import useCrossrefApi from '@/composables/crossref-api';
@@ -104,6 +104,9 @@ async function onLoadMore() {
 }
 
 async function onSearch(mode: "querying" | "filtering" | "initial" = "querying") {
+  if (isFetching.value)
+    return
+  
   const urlSearchParams = new URLSearchParams([
     ["rows", defaultRows],
     ["select", defaultSelect],
@@ -223,7 +226,7 @@ onBeforeMount(() => {
             class="flex h-full"
           >
             <div class="w-[15%] border-r border-gray-200 p-4 overflow-y-auto">
-              <FacetItem
+              <FacetPanel
                 v-model="facetSelected"
                 :facets="facetStored"
               />
@@ -244,7 +247,7 @@ onBeforeMount(() => {
                 <div class="text-gray-500 font-bold text-right">
                   {{ data?.message?.["total-results"] || 0 }} Results
                 </div>
-                <ResultValue
+                <WorkItem
                   v-for="(item, index) in workItems"
                   :key="index"
                   :item="item"

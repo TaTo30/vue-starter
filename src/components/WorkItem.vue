@@ -4,9 +4,7 @@ import { useChangeCase } from "@vueuse/integrations/useChangeCase";
 
 import type { CrossrefWorkItem } from '@/vite-env';
 
-const props = defineProps<{
-  item: CrossrefWorkItem
-}>()
+const props = defineProps<{ item: CrossrefWorkItem }>()
 
 const authorList = computed(() => { 
   if (!props.item.author || props.item.author.length === 0) return ""
@@ -38,10 +36,6 @@ const containerTitle = computed(() => {
   return `in ${props.item['container-title'][0]}`
 })
 
-const itemType = computed(() => {
-  return useChangeCase(props.item.type || "", "capitalCase")
-})
-
 </script>
 
 <template>
@@ -49,11 +43,11 @@ const itemType = computed(() => {
     <div
       class="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow"
     >
-      <h3 class="text-xl font-semibold text-gray-900">
+      <h3 class="text-xl font-semibold text-gray-900 text-ellipsis overflow-hidden">
         {{ props.item.title?.[0] || '' }}
       </h3>
       <p class="text-md text-gray-500 mt-1">
-        <strong> {{ itemType }}</strong> published {{ publishedDate }} {{ containerTitle }}
+        <strong> {{ useChangeCase(props.item.type || "", "capitalCase") }}</strong> published {{ publishedDate }} {{ containerTitle }}
       </p>
       <p
         v-if="authorList"
@@ -66,7 +60,7 @@ const itemType = computed(() => {
           tabindex="0"
           class="text-blue-500 no-underline"
           :href="props.item.URL"
-          target="blank"
+          target="_blank"
           rel="noopener noreferrer"
         > 
           {{ props.item.URL }}

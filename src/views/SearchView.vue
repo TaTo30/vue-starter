@@ -31,6 +31,7 @@ const cursorStored = useStorage<string>("cursor", "*", sessionStorage)
 const query = useRouteQuery<string>("q", "");
 const filters = useRouteQuery<string>("filters", "")
 
+const lastRequestMode = ref("")
 const workItems = ref<CrossrefWorkItem[]>([])
 const searchUrl = ref("")
 const facetSelected = ref<string[][]>(
@@ -45,6 +46,7 @@ const { execute, data, isFetching } = useFetch<CrossrefResponse>(
   {
     immediate: false,
     afterFetch(ctx) {
+      // state: s4 http request based on parameters given
       const url = new URL(ctx.context.url)
       if (url.searchParams.has("facet")) {
         if (ctx.data?.message.facets) {
@@ -52,6 +54,7 @@ const { execute, data, isFetching } = useFetch<CrossrefResponse>(
         }
       }
 
+      // nav s4 --> s5, store NEXT cursor
       if (url.searchParams.get("cursor") === "*") {
         workItems.value = ctx.data?.message.items || []
         cursorStored.value = ctx.data?.message["next-cursor"] || "*"
@@ -72,6 +75,7 @@ useIntersectionObserver(onLoadSentile, ([entry]) => {
 })
 
 async function fetchFacets() {
+  // state s3: 0 rows, with filters, with facets and no cursor
   const urlSearchParams = new URLSearchParams([
     ["rows", "0"],
     ["select", defaultSelect],
@@ -87,6 +91,10 @@ async function fetchFacets() {
 }
 
 async function onLoadMore() {
+  // state: s7, same filters, remove facets and update cursor
+
+  // If cursor is "*" it means that results has not been loaded yet
+  // and the sentinel trigget this event because mounting delay
   if (cursorStored.value === "*")
     return
 
@@ -98,44 +106,56 @@ async function onLoadMore() {
   const currentUrl = new URL(searchUrl.value)
   const urlSearchParams = currentUrl.searchParams
   urlSearchParams.set("cursor", cursorStored.value)
-  urlSearchParams.delete("facet") // Do not request facets when loading more results
+  urlSearchParams.delete("facet")
   searchUrl.value = url("works", urlSearchParams)
   execute()
 }
 
 async function onSearch(mode: "querying" | "filtering" | "initial" = "querying") {
+  // if is fetching do not allow to trigger new search
   if (isFetching.value)
     return
   
   const urlSearchParams = new URLSearchParams([
     ["rows", defaultRows],
     ["select", defaultSelect],
-    ["query", query.value]
+    ["query", query.value],
+    ["cursor", "*"]
   ])
 
   // We will request facets in another call when user is reloading page with filters
+  // nav s2 -> s3 in parallel only if filters exits
   if (mode === "initial" && filters.value) {
     fetchFacets()
   }
 
+  // nav s6 -> s4 with rows, add filters, removed facets and new cursor
   if (filters.value && (mode === "filtering" || mode === "initial")) {
     urlSearchParams.append("filter", filters.value)
   }
 
+  // nav s1 -> s4 with rows, remove filters, add facets and new cursor
   if (mode === "querying") {
     facetSelected.value = []
     filters.value = ""
     urlSearchParams.append("facet", defaultFacet)
   }
 
-  urlSearchParams.append("cursor", "*")
+  lastRequestMode.value = mode
   searchUrl.value = url("works", urlSearchParams)
   execute()
 }
 
 watchDebounced(
   facetSelected,
-  () => {
+  (value) => {
+    // If last request was querying mode then this watcher was triggered 
+    // by removing automatically all filters, not by user interaction.
+    if (value.length === 0 && lastRequestMode.value === "querying")
+      return
+    
+    // nav s5 --> s6, new filters added
+    // navigate to state: s4
     filters.value = facetSelected.value.map(f => `${f[0]}:${f[1]}`).join(",")
     onSearch("filtering")
   },
@@ -152,10 +172,13 @@ watch(Ctrl_K, () => {
 
 onBeforeMount(() => {
   // Mounted hook is useful for reloading cases
-  if (query.value) {
-    onSearch("initial")
-  }
+  // state: s0 -> page could be loaded with query and filters, only query or neither of them
+  if (query.value && filters.value) 
+    onSearch("initial") // Navigate to state: s2
+  else if (query.value)
+    onSearch("querying") // navigate to state: s1
 
+  // Navigate to state: s1 with user input
   searchInput.value?.focus()
 })
 </script>
@@ -182,6 +205,7 @@ onBeforeMount(() => {
             class="w-full rounded-md border border-gray-300 px-4 py-2 pr-16 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             @keydown.enter="onSearch('querying')"
           >
+          <!-- state: s1 @keydown.enter="onSearch('querying')" navigate to s4 with rows, no filters and new cursor -->
           <div class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none inline-flex items-center space-x-2">
             <LoadingIcon
               v-if="isFetching"
@@ -199,10 +223,11 @@ onBeforeMount(() => {
 
       <nav class="flex items-center gap-4 text-sm text-gray-600">
         <a
-          href="#"
+          href="https://www.crossref.org/documentation/retrieve-metadata/rest-api/"
+          tabindex="-1"
           class="hover:text-gray-900"
         >
-          Support
+          Help
         </a>
       </nav>
     </header>
@@ -210,6 +235,7 @@ onBeforeMount(() => {
     <div
       ref="resultContainer"
       class="flex-1 overflow-y-auto"
+      tabindex="-1"
     >
       <div>
         <div
@@ -254,7 +280,7 @@ onBeforeMount(() => {
                 />
                 <div
                   ref="onLoadSentile"
-                  class="h-1"
+                  class="h-1 invisible"
                 />
                 <div
                   v-if="isFetching && cursorStored !== '*'"
